@@ -1,0 +1,118 @@
+"use client";
+
+import { useState } from "react";
+import { EventForm, type TripPlan } from "@/components/EventForm";
+import { DepartureBanner } from "@/components/DepartureBanner";
+
+// URL of the deployed backend project (the other Vercel project). Leave
+// blank for local dev only if you're running the backend on the same
+// origin — normally this should point at the backend's own domain, e.g.
+// https://wont-be-late-backend.vercel.app
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+
+type ApiResponse = {
+  estimate: {
+    mode: string;
+    distanceMeters: number;
+    totalTravelMinutes: number;
+    nearestStation: string | null;
+    walkToStationMinutes: number | null;
+    inTransitMinutes: number | null;
+    walkFromStationMinutes: number | null;
+    usingRealApi: boolean;
+    notes: string | null;
+  };
+  eventTime: string;
+  bufferMinutes: number;
+  departureDeadline: string;
+  odsayConfigured: boolean;
+};
+
+export default function Home() {
+  const [result, setResult] = useState<ApiResponse | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  const handleSubmit = async (plan: TripPlan) => {
+    setSubmitting(true);
+    setApiError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/route`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origin: plan.origin,
+          destination: plan.destination,
+          eventTime: plan.eventTime,
+          bufferMinutes: plan.bufferMinutes,
+          mode: plan.mode,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Request failed (${res.status})`);
+      }
+      const data: ApiResponse = await res.json();
+      setResult(data);
+    } catch (err: any) {
+      setApiError(
+        API_BASE
+          ? err.message ?? "Something went wrong"
+          : `${err.message ?? "Request failed"} — is NEXT_PUBLIC_API_BASE_URL set to the backend's URL?`
+      );
+      setResult(null);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <main className="page">
+      <section className="card">
+        <h1>Will I be late?</h1>
+        <p className="subtitle">
+          Set your event and where you&apos;re starting from — we&apos;ll tell you the latest
+          minute you can walk out the door.
+        </p>
+        <EventForm onSubmit={handleSubmit} submitting={submitting} />
+        {apiError && <p className="hint hint-error">{apiError}</p>}
+      </section>
+
+      {result && (
+        <section className="card">
+          <DepartureBanner eventTime={result.eventTime} departureDeadline={result.departureDeadline} />
+
+          <div className="trip-breakdown">
+            <h2>Trip breakdown</h2>
+            <ul>
+              <li>Mode: {result.estimate.mode}</li>
+              <li>Distance: {(result.estimate.distanceMeters / 1000).toFixed(2)} km</li>
+              <li>Total travel time: {result.estimate.totalTravelMinutes} min</li>
+              {result.estimate.nearestStation && (
+                <li>Nearest station: {result.estimate.nearestStation}</li>
+              )}
+              {result.estimate.walkToStationMinutes != null && (
+                <li>Walk to station: {result.estimate.walkToStationMinutes} min</li>
+              )}
+              {result.estimate.inTransitMinutes != null && (
+                <li>In transit: {result.estimate.inTransitMinutes} min</li>
+              )}
+              {result.estimate.walkFromStationMinutes != null && (
+                <li>Walk from station: {result.estimate.walkFromStationMinutes} min</li>
+              )}
+              <li>Buffer added: {result.bufferMinutes} min</li>
+            </ul>
+            <p className="hint">
+              {result.odsayConfigured
+                ? result.estimate.usingRealApi
+                  ? "Live ODsay transit data."
+                  : "ODsay key is set, but this trip fell back to the estimator (no key configured for walk/drive modes, or ODsay found no path)."
+                : "Using the built-in estimator — add an ODSAY_API_KEY on the backend for live subway/bus routing."}
+              {result.estimate.notes ? ` ${result.estimate.notes}` : ""}
+            </p>
+          </div>
+        </section>
+      )}
+    </main>
+  );
+}
