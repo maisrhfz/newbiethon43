@@ -1,23 +1,25 @@
-export function formatClock(date: Date | string | number): string {
-  const d = new Date(date);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+export function minutesUntil(target: Date, from: Date = new Date()): number {
+  return Math.round((target.getTime() - from.getTime()) / 60000);
 }
 
-export function formatCountdown(ms: number): string {
-  if (ms <= 0) return "00:00";
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+export type Urgency = "plenty" | "soon" | "leave-now" | "late";
+
+export function urgencyFor(minutesLeft: number): Urgency {
+  if (minutesLeft <= 0) return "late";
+  if (minutesLeft <= 5) return "leave-now";
+  if (minutesLeft <= 20) return "soon";
+  return "plenty";
 }
 
-export function minutesUntil(targetDate: Date | string | number): number {
-  const diffMs = new Date(targetDate).getTime() - Date.now();
-  return Math.floor(diffMs / (1000 * 60));
+export function formatClock(d: Date): string {
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function urgencyFor(minutes: number): "low" | "medium" | "high" {
-  if (minutes <= 5) return "high";
-  if (minutes <= 15) return "medium";
-  return "low";
+export function formatCountdown(minutes: number): string {
+  const sign = minutes < 0 ? "-" : "";
+  const abs = Math.abs(minutes);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  if (h > 0) return `${sign}${h}h ${m}m`;
+  return `${sign}${m}m`;
 }
