@@ -1,5 +1,3 @@
-// frontend/lib/time.ts
-
 export function minutesUntil(target: Date, from: Date = new Date()): number {
   return Math.round((target.getTime() - from.getTime()) / 60000);
 }
